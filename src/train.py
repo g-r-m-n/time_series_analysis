@@ -36,7 +36,7 @@ np.random.seed(888) # set random seed for reproduceability
 
 # %% load data and check it
 # Read the dataframe:
-df = pd.read_csv(input_folder+'/train.csv',  parse_dates=['datetime'], infer_datetime_format=True) #  parse_dates=True, squeeze=True, header=0, index_col=0,
+df = pd.read_csv(input_folder+'/data.csv',  parse_dates=['day'], infer_datetime_format=True) #  parse_dates=True, squeeze=True, header=0, index_col=0,
 #drop casual and registered columns
 df.drop(['casual', 'registered'], axis=1, inplace=True)
 
@@ -136,7 +136,9 @@ df['lagged_y'] = df['y'].shift(24*7)
 df.dropna(how='any', axis=0, inplace=True)
 
 
-train_time_series_with_folds(df, output_folder_plots = output_folder_plots)
+model_trained = train_time_series_with_folds(df, output_folder_plots = output_folder_plots)
 
+# save model
+pickle.dump(model_trained, open("save.pkl", "wb"))
 
 

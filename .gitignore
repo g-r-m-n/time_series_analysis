@@ -7,8 +7,6 @@ DOC/
 DOC/*
 src/input/
 src/input/*
-src/output/
-src/output/*
 archive/
 archive/*
 .ipynb_checkpoints

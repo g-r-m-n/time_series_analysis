@@ -99,6 +99,7 @@ def train_time_series_with_folds(df,  y_var = 'y', horizon=24*7, TUNE = True, ou
         plt.savefig(output_folder_plots  +title2+ '.png', dpi=100,bbox_inches="tight")    
     plt.show()
     
+    return model
     
     
 def test_for_stationary(df,  y_var = 'y'):
