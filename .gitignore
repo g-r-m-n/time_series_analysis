@@ -9,6 +9,8 @@ src/input/
 src/input/*
 src/output/
 src/output/*
+archive/
+archive/*
 .ipynb_checkpoints
 /.ipynb_checkpoints/*
 # C extensions
