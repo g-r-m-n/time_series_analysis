@@ -5,8 +5,8 @@ __pycache__/
 DOCS/*
 DOC/
 DOC/*
-src/data/
-src/data/*
+src/input/
+src/input/*
 src/output/
 src/output/*
 .ipynb_checkpoints
@@ -31,6 +31,8 @@ parts/
 sdist/
 var/
 wheels/
+src/data/
+src/data/*
 pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/

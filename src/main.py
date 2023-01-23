@@ -14,11 +14,12 @@ pth_to_src = 'C:/DEV/time_series_analysis/src/'
 # data:
 today = date.today().strftime('%Y%m%d')
 # output folders:
-path_to_data  = pth_to_src + 'data/'
-output_folder = path_to_data+today+'/'
+path_to_data  = pth_to_src + 'input/'
+output_folder = pth_to_src+ 'output/'+today+'/'
 output_folder_plots  = output_folder+'plots/'
 # create output_folders if they do not exist:
 os.makedirs(output_folder,exist_ok=True)
+os.makedirs(output_folder_plots,exist_ok=True)
 # load utility functions
 sys.path.append(pth_to_src+'/utils/')
 from utility import *
@@ -26,7 +27,7 @@ from utility import *
 from importlib import reload
 reload(sys.modules['utility'])    
 
-np.random.seed(4444) # set random seed for reproduceability
+np.random.seed(888) # set random seed for reproduceability
 
 # %% load data and check it
 # Read the dataframe:
