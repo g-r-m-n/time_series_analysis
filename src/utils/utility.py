@@ -33,14 +33,16 @@ def decompose_time_series(df, share_type='y', samples=250, period=24, decomposit
     
 
 
-def train_time_series_with_folds(df,  y_var = 'y', horizon=24*7, TUNE = True, output_folder_plots = '', title1='Prediction', title2= 'importance', SAVE_OUTPUT = 1):
+def train_time_series_with_folds(df,  y_var = 'y', horizon=7, TUNE = True, output_folder_plots = '', title1='Prediction', title2= 'importance', SAVE_OUTPUT = 1):
     """function to tune, train, predict and plot model results"""
     X = df.drop(y_var, axis=1)
     y = df[y_var]
     
     #take last week of the dataset for validation
-    X_train, X_test = X.iloc[:-horizon,:], X.iloc[-horizon:,:]
-    y_train, y_test = y.iloc[:-horizon], y.iloc[-horizon:]
+    inx_day = np.unique(df.index.get_level_values('day'))[-horizon]
+    
+    X_train, X_test = X.iloc[df.index.get_level_values('day')<inx_day,:], X.iloc[df.index.get_level_values('day')>=inx_day,:]
+    y_train, y_test = y.iloc[df.index.get_level_values('day')<inx_day], y.iloc[df.index.get_level_values('day')>=inx_day]
     
     #create, train and do inference of the model
     if TUNE:
@@ -64,25 +66,29 @@ def train_time_series_with_folds(df,  y_var = 'y', horizon=24*7, TUNE = True, ou
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
     
-    #calculate MAE
-    mae = np.round(mean_absolute_error(y_test, predictions), 3)    
+   
     
     #plot Observed vs prediction for the horizon of the dataset
-    fig = plt.figure(figsize=(16,8))
-    plt.title(f'Observed vs Prediction - MAE {mae}', fontsize=20)
-    plt.plot(y_test, color='red')
-    plt.plot(pd.Series(predictions, index=y_test.index), color='green')
-    plt.xlabel('Hour', fontsize=16)
-    plt.ylabel(y_var, fontsize=16)
-    plt.legend(labels=['Real', 'Prediction'], fontsize=16)
-    plt.grid()
-    # Saving plot to pdf and png file
-    if SAVE_OUTPUT:
-        plt.savefig(output_folder_plots  +title1+'.pdf', dpi=100,bbox_inches="tight")
-        #plt.title(title1, fontsize=20)
-        plt.savefig(output_folder_plots  +title1+ '.png', dpi=100,bbox_inches="tight")
-    plt.show()
-    
+    items = np.unique(df.index.get_level_values('item_number'))
+    for i in items:
+        fig = plt.figure(figsize=(16,8))
+        inx_i = y_test.index.get_level_values('item_number')==i
+        #calculate MAE
+        mae = np.round(mean_absolute_error(y_test[inx_i], predictions[inx_i]), 3) 
+        plt.title(f'Observed vs Prediction - MAE {mae}', fontsize=20)
+        plt.plot(pd.Series(y_test[inx_i].values,index=y_test.index.get_level_values('day')[inx_i]), color='red')
+        plt.plot(pd.Series(predictions[inx_i], index=y_test.index.get_level_values('day')[inx_i]), color='green')
+        plt.xlabel('day', fontsize=16)
+        plt.ylabel(y_var+':'+str(i), fontsize=16)
+        plt.legend(labels=['Real', 'Prediction'], fontsize=16)
+        plt.grid()
+        # Saving plot to pdf and png file
+        if SAVE_OUTPUT:
+            plt.savefig(output_folder_plots  +title1+'_'+str(i)+'.pdf', dpi=100,bbox_inches="tight")
+            #plt.title(title1, fontsize=20)
+            plt.savefig(output_folder_plots  +title1+'_'+str(i)+ '.png', dpi=100,bbox_inches="tight")
+        plt.show()
+
     #create a dataframe with the variable importances of the model
     df_importances = pd.DataFrame({
         'feature': model.feature_name_,
@@ -101,28 +107,7 @@ def train_time_series_with_folds(df,  y_var = 'y', horizon=24*7, TUNE = True, ou
     
     return model
     
-    
-def test_for_stationary(df,  y_var = 'y'):
-    """ Test for stationary.
-    If the time series is not stationary and we should use an AR-I-MA model instead of an ARMA."""
-    
-    # Augmented Dickey Fuller (ADF) Test
-    # null hypothesis:  time series possesses a unit root and is non-stationary. 
-    result = adfuller(df.y.values, autolag='AIC')
-    print(f'ADF Statistic: {result[0]}')
-    print(f'p-value: {result[1]}')
-    for key, value in result[4].items():
-        print('Critial Values:')
-        print(f'   {key}, {value}')
 
-    # Kwiatkowski-Phillips-Schmidt-Shin (KPSS) Test
-    # null hypothesis: time series does not possess a unit root and is stationary.
-    result = kpss(df.y.values, regression='c')
-    print('\nKPSS Statistic: %f' % result[0])
-    print('p-value: %f' % result[1])
-    for key, value in result[3].items():
-        print('Critial Values:')
-        print(f'   {key}, {value}')	    
     
     
     

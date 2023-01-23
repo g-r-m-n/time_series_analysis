@@ -2,12 +2,17 @@
 # run the following to create/update the requirements:
 # !pipreqs --encoding utf-8
 
+# %% Setting
+
+VERBOSE = 0
+
+
 # %% load libraries
 import numpy as np
 import pandas as pd
 import sys, time, os
 from datetime import date
-
+from datetime import datetime
 # determine the path to the source folder 
 pth_to_src = 'C:/DEV/time_series_analysis/src/'
 
@@ -20,11 +25,11 @@ input_folder  = pth_to_src + 'input/'
 # output folder:
 output_folder = pth_to_src+ 'output/'+today+'/' # with date of today. This way a daily history of results is automatically stored.
 output_folder_plots  = output_folder+'plots/'
-
+output_folder_model  = output_folder+'model/'
 # create output_folder if not existant:
 os.makedirs(output_folder,exist_ok=True)
 os.makedirs(output_folder_plots,exist_ok=True)
-
+os.makedirs(output_folder_model,exist_ok=True)
 # load utility functions
 sys.path.append(pth_to_src+'/utils/')
 from utility import *
@@ -34,55 +39,101 @@ reload(sys.modules['utility'])
 
 np.random.seed(888) # set random seed for reproduceability
 
-# %% load data and check it
+# %% load data and check it 2022-02-09
+custom_date_parser = lambda x: datetime.strptime(x, "%Y-%m-%d")
 # Read the dataframe:
-df = pd.read_csv(input_folder+'/data.csv',  parse_dates=['day'], infer_datetime_format=True) #  parse_dates=True, squeeze=True, header=0, index_col=0,
-#drop casual and registered columns
-df.drop(['casual', 'registered'], axis=1, inplace=True)
+df = pd.read_csv(input_folder+'/data.csv',  parse_dates=['day'], date_parser=custom_date_parser, index_col = 0) #  
 
-df = df.rename (columns= {'count': 'y'})
-                      
+# drop duplicate rows:
+df = df.drop_duplicates()
+
+df = df.rename (columns= {'revenue': 'y'})
+
+# revenue is zero for zero quantity sales:
+df.loc[df.sales_quantity==0,'y'] = 0
+             
+# check for missing values:
+if VERBOSE:
+    print('\nNumber and rate of missing values:')
+    print(df.isna().sum(),df.isna().mean())       
+
+
+# 
+
 # %% preprocess the data :
     
 #set datetime as index
-df = df.set_index(df.datetime)
+df = df.set_index([df.day,df.item_number])
 
-#drop datetime column
-df.drop('datetime', axis=1, inplace=True)
+#drop day and item_number column
+df.drop(['day','item_number'], axis=1, inplace=True)
 
-#create hour, day and month variables from datetime index
-if 0:
-    df['day']   = df.index.day
-    df['month'] = df.index.month
+#dropitem_name column
+df.drop(['item_name'], axis=1, inplace=True)
+
+
+#create  month  and week day variables from datetime index
+if 1:
+    df['month'] = df.index.get_level_values('day').month_name()
+    df = pd.get_dummies(data=df, columns= ['month'])
     
     # Add a variable to indicate the day of the week:
-    df['weekday'] = df.index.dt.day_name() 
+    df['weekday'] = df.index.get_level_values('day').day_name() 
+     
+    df = pd.get_dummies(data=df, columns= ['weekday'])
     
-    # Add a variable to indicate the hour of the day:
-    df['hour'] = df.index.dt.hour
-    
-# sort dataframe 
-if 0:
-    df = df.sort_values(['user_id','session_id','timestamp','page_id'])
-    # reset the index:
-    df = df.reset_index()
+    #drop month, weekday column as it is not observed at the day before.
+    df.drop(['weekday','month'], axis=1, inplace=True)
+                 
+# add discount rate variable
+df['discount'] = (df.suggested_retail_price - df.purchase_price)/df.suggested_retail_price 
+
+#drop suggested_retail_price column and use instead the discount variable
+df.drop(['suggested_retail_price'], axis=1, inplace=True)
+
+
+
+# add lagged variables
+# y:
+df['lagged_y'] = df['y'].groupby(level='item_number').shift(1)
+# orders_quantity:
+df['lagged_orders_quantity'] = df['orders_quantity'].groupby(level='item_number').shift(1)
+
+
+
+df['lagged_y'] = df['y'].groupby(level='item_number').shift(1)
+
+
+#drop NaNs after feature engineering
+df.dropna(how='any', axis=0, inplace=True)
+
+#drop orders_quantity column as it is not observed at the day before.
+df.drop(['orders_quantity'], axis=1, inplace=True)
 
 # %% check the data
 # basic descriptive statistics of the data set:
-df.info()
-df.describe().T
+if VERBOSE:
+    df.info()
+    df.describe().T
+
+# pearson correlations
+if VERBOSE:
+    c1 = np.round(df.corr(),3)
+    print(c1)
 
 # Show distribution plots of data (from kernel density estimation)
-if 0:
+if VERBOSE:
     import seaborn as sns
     from matplotlib import pyplot as plt
+    from pandas.api.types import is_numeric_dtype
     for i in df.columns:
-        ax = plt.subplot()
-        sns.kdeplot(df[i], label=i)
-        plt.show()
- 
+        if is_numeric_dtype(df[i]):
+            ax = plt.subplot()
+            sns.kdeplot(df[i], label=i)
+            plt.show()
+     
 # create an autocorrelation plot
-if 0:
+if VERBOSE:
     from pandas.plotting import autocorrelation_plot
     from matplotlib import pyplot as plt
     autocorrelation_plot(df.y) # (df.value.tolist())
@@ -91,21 +142,20 @@ if 0:
 	
 # %% Decompose series 	
 
-    
-decompose_time_series(df, output_folder_plots = output_folder_plots)
+if VERBOSE:    
+    decompose_time_series(df, output_folder_plots = output_folder_plots)
 
 # Calculate ACF and PACF up to 50 lags
 
 # Draw Plot
-from statsmodels.tsa.stattools import acf, pacf
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-fig, axes = plt.subplots(1,2,figsize=(16,3), dpi= 100)
-plot_acf(df.y.tolist(), lags=50, ax=axes[0])
-plot_pacf(df.y.tolist(), lags=50, ax=axes[1], method='ywm')
-	
-# %% Test for stationary:
-if 0:
-    test_for_stationary(df,  y_var = 'y')
+if VERBOSE:
+    from statsmodels.tsa.stattools import acf, pacf
+    from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+    fig, axes = plt.subplots(1,2,figsize=(16,3), dpi= 100)
+    plot_acf(df.y.tolist(), lags=50, ax=axes[0])
+    plot_pacf(df.y.tolist(), lags=50, ax=axes[1], method='ywm')
+    	
+
 
     
 
@@ -114,31 +164,22 @@ if 0:
 # Granger causality test is used to determine if one time series will be useful to forecast another.	
 # Idea: if X causes Y, then the forecast of Y based on previous values of Y AND the previous values of X should outperform the forecast of Y based on previous values of Y alone.
 # The Null hypothesis: the series in the second column, does not Granger cause the series in the first. 
-from statsmodels.tsa.stattools import grangercausalitytests
-df['month'] = df.index.month
-gct = grangercausalitytests(df[['y', 'month']], maxlag=2)	
-
-# If p-values are zero for all tests: So the ‘month’ indeed can be used to forecast the Y.
-	
-
-
-
-# %% tune, train, predict and plot model results using LGB:
-# wo lagged variable
-train_time_series_with_folds(df, SAVE_OUTPUT=0)
+if VERBOSE:
+    from statsmodels.tsa.stattools import grangercausalitytests
+    df['month'] = df.index.get_level_values('day').month
+    gct = grangercausalitytests(df[['y', 'month']], maxlag=2)	
+    
+    # If p-values are zero for all tests: So the ‘month’ indeed can be used to forecast the Y.
+    	
 
 
 # %% tune, train, predict and plot model results using LGB:
-# with lagged variable
-df['lagged_y'] = df['y'].shift(24*7)
-
-#drop NaNs after feature engineering
-df.dropna(how='any', axis=0, inplace=True)
+trained_model = train_time_series_with_folds(df, output_folder_plots = output_folder_plots, TUNE=0)
 
 
-model_trained = train_time_series_with_folds(df, output_folder_plots = output_folder_plots)
-
-# save model
-pickle.dump(model_trained, open("save.pkl", "wb"))
-
-
+# %% save the model 
+if 0:
+    pickle.dump(trained_model, open(output_folder_model+'trained_model.pkl', "wb"))
+# load modelk:
+if 0:
+    trained_model = pickle.load(open(output_folder_model+'trained_model.pkl', "rb"))
