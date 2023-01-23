@@ -11,15 +11,20 @@ from datetime import date
 # determine the path to the source folder 
 pth_to_src = 'C:/DEV/time_series_analysis/src/'
 
-# data:
+# date of today:
 today = date.today().strftime('%Y%m%d')
-# output folders:
-path_to_data  = pth_to_src + 'input/'
-output_folder = pth_to_src+ 'output/'+today+'/'
+
+# input folder:
+input_folder  = pth_to_src + 'input/'
+
+# output folder:
+output_folder = pth_to_src+ 'output/'+today+'/' # with date of today. This way a daily history of results is automatically stored.
 output_folder_plots  = output_folder+'plots/'
-# create output_folders if they do not exist:
+
+# create output_folder if not existant:
 os.makedirs(output_folder,exist_ok=True)
 os.makedirs(output_folder_plots,exist_ok=True)
+
 # load utility functions
 sys.path.append(pth_to_src+'/utils/')
 from utility import *
@@ -31,7 +36,7 @@ np.random.seed(888) # set random seed for reproduceability
 
 # %% load data and check it
 # Read the dataframe:
-df = pd.read_csv(path_to_data+'/train.csv',  parse_dates=['datetime'], infer_datetime_format=True) #  parse_dates=True, squeeze=True, header=0, index_col=0,
+df = pd.read_csv(input_folder+'/train.csv',  parse_dates=['datetime'], infer_datetime_format=True) #  parse_dates=True, squeeze=True, header=0, index_col=0,
 #drop casual and registered columns
 df.drop(['casual', 'registered'], axis=1, inplace=True)
 
