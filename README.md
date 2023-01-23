@@ -1,6 +1,6 @@
 # time_series_analysis
 
-Solution to task https://hackmd.io/@freshflow/B16yJrWg9.
+Solution to task Time Series Data Scientist take-home challenge.
 
 
 Instructions:
