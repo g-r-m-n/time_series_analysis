@@ -9,31 +9,35 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from sklearn.model_selection import RandomizedSearchCV
 from statsmodels.tsa.stattools import adfuller, kpss
+import itertools
 
 
 
-def decompose_time_series(df, share_type='y', samples=250, period=24, decomposition_model_type='additive', output_folder_plots = '', title1='Decomposition', SAVE_OUTPUT = 1):
-    if samples == 'all':
-        #decomposing all time series timestamps
-        result = seasonal_decompose(df[share_type].values, period=period, model=decomposition_model_type, extrapolate_trend='freq')
-    else:
-        #decomposing a sample of the time series
-        result = seasonal_decompose(df[share_type].values[-samples:], period=period, model=decomposition_model_type, extrapolate_trend='freq')
-        
-        
-    # Plot
-    plt.rcParams.update({'figure.figsize': (10,10)})
-    result.plot().suptitle('Decomposition', fontsize=22)
-    # Saving plot to pdf and png file
-    if SAVE_OUTPUT:
-        plt.savefig(output_folder_plots  +title1+'.pdf', dpi=100,bbox_inches="tight")
-        #plt.title(title1, fontsize=20)
-        plt.savefig(output_folder_plots  +title1+ '.png', dpi=100,bbox_inches="tight")    
-    plt.show()	
+def decompose_time_series(df, y_var='y', samples='all', period=24, decomposition_model_type='additive', output_folder_plots = '', title1='Decomposition', SAVE_OUTPUT = 1):
+    items = np.unique(df.index.get_level_values('item_name'))
+    for i in items:
+        inx_i = df[y_var].index.get_level_values('item_name')==i
+        if samples == 'all':
+            #decomposing all time series timestamps
+            result = seasonal_decompose(df.loc[inx_i,y_var].values, period=period, model=decomposition_model_type, extrapolate_trend='freq')
+        else:
+            #decomposing a sample of the time series
+            result = seasonal_decompose(df.loc[inx_i,y_var].values[-samples:], period=period, model=decomposition_model_type, extrapolate_trend='freq')
+            
+            
+        # Plot
+        plt.rcParams.update({'figure.figsize': (10,10)})
+        result.plot().suptitle('Decomposition'+'_'+str(i), fontsize=22)
+        # Saving plot to pdf and png file
+        if SAVE_OUTPUT:
+            plt.savefig(output_folder_plots  +title1+'_'+str(i)+'.pdf', dpi=100,bbox_inches="tight")
+            #plt.title(title1, fontsize=20)
+            plt.savefig(output_folder_plots  +title1+'_'+str(i)+ '.png', dpi=100,bbox_inches="tight")    
+        plt.show()	
     
 
 
-def train_time_series_with_folds(df,  y_var = 'y', horizon=7, TUNE = True, output_folder_plots = '', title1='Prediction', title2= 'importance', SAVE_OUTPUT = 1):
+def train_time_series_with_folds(df,  y_var = 'y', horizon=14, TUNE = True, output_folder_plots = '', title1='Prediction', title2= 'importance', SAVE_OUTPUT = 1):
     """function to tune, train, predict and plot model results"""
     X = df.drop(y_var, axis=1)
     y = df[y_var]
@@ -47,15 +51,15 @@ def train_time_series_with_folds(df,  y_var = 'y', horizon=7, TUNE = True, outpu
     #create, train and do inference of the model
     if TUNE:
         # Tune hyperparameters and final model using 10-fold cross-validation with 10 parameter settings sampled from random search. Random search can cover a larger area of the paramter space with the same number of consider setting compared to e.g. grid search.
-        rs = RandomizedSearchCV(LGBMRegressor(), {
+        rs = RandomizedSearchCV(LGBMRegressor(random_state=42), { 
                'learning_rate': [0.01, 0.1, 0.3, 0.5],
-                                'max_depth': [1, 5, 15, 20, 30],
-                                'num_leaves': [10, 20, 30, 100],
+                                'max_depth': [3, 5, 15, 20, 30],
+                                'num_leaves': [5, 10, 20, 30],
                                 'subsample': [0.1, 0.2, 0.8, 1]
             }, 
             cv=10, 
             return_train_score=False, 
-            n_iter=10
+            n_iter=30
         )
         print("\nTuning hyperparameters ..")
         rs.fit(X_train, y_train)    
@@ -69,10 +73,10 @@ def train_time_series_with_folds(df,  y_var = 'y', horizon=7, TUNE = True, outpu
    
     
     #plot Observed vs prediction for the horizon of the dataset
-    items = np.unique(df.index.get_level_values('item_number'))
+    items = np.unique(df.index.get_level_values('item_name'))
     for i in items:
         fig = plt.figure(figsize=(16,8))
-        inx_i = y_test.index.get_level_values('item_number')==i
+        inx_i = y_test.index.get_level_values('item_name')==i
         #calculate MAE
         mae = np.round(mean_absolute_error(y_test[inx_i], predictions[inx_i]), 3) 
         plt.title(f'Observed vs Prediction - MAE {mae}', fontsize=20)

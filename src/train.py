@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-# run the following to create/update the requirements:
-# !pipreqs --encoding utf-8
+
 
 # %% Setting
 
-VERBOSE = 0
+VERBOSE                     = 1 # 0 or 1. If 1. verbose mode is used and more inforation is shown, such as addtional descriptive plots, or correlations, statistical tests, etc.
+
+USE_LOG_TRANSFORMED_RESPONSE = 1 # # 0 or 1. If 1, log-transform the response value to model values that are numerical better tractable. Add plus one to avoid a log of zero.
 
 
 # %% load libraries
@@ -58,18 +59,22 @@ if VERBOSE:
     print(df.isna().sum(),df.isna().mean())       
 
 
-# 
+# log-transform the response value to model values that are numerical better tractable.
+# add plus one to avoid a log of zero:
+if USE_LOG_TRANSFORMED_RESPONSE:
+    df['y'] = np.log(df['y'] +1)
+
 
 # %% preprocess the data :
     
 #set datetime as index
-df = df.set_index([df.day,df.item_number])
+df = df.set_index([df.day,df.item_name])
 
 #drop day and item_number column
-df.drop(['day','item_number'], axis=1, inplace=True)
+df.drop(['day','item_name'], axis=1, inplace=True) 
 
-#dropitem_name column
-df.drop(['item_name'], axis=1, inplace=True)
+#drop item_number column
+df.drop(['item_number'], axis=1, inplace=True)
 
 
 #create  month  and week day variables from datetime index
@@ -79,12 +84,9 @@ if 1:
     
     # Add a variable to indicate the day of the week:
     df['weekday'] = df.index.get_level_values('day').day_name() 
-     
     df = pd.get_dummies(data=df, columns= ['weekday'])
     
-    #drop month, weekday column as it is not observed at the day before.
-    df.drop(['weekday','month'], axis=1, inplace=True)
-                 
+                
 # add discount rate variable
 df['discount'] = (df.suggested_retail_price - df.purchase_price)/df.suggested_retail_price 
 
@@ -92,23 +94,22 @@ df['discount'] = (df.suggested_retail_price - df.purchase_price)/df.suggested_re
 df.drop(['suggested_retail_price'], axis=1, inplace=True)
 
 
-
 # add lagged variables
 # y:
-df['lagged_y'] = df['y'].groupby(level='item_number').shift(1)
-# orders_quantity:
-df['lagged_orders_quantity'] = df['orders_quantity'].groupby(level='item_number').shift(1)
+df['lagged_y']  = df['y'].groupby(level='item_name').shift(1)
+df['lagged2_y'] = df['y'].groupby(level='item_name').shift(2)
 
+# sales_quantity:
+df['lagged_sales_quantity'] = df['sales_quantity'].groupby(level='item_name').shift(1)
+#df['lagged_orders_quantity'] = df['orders_quantity'].groupby(level='item_name').shift(1)
 
-
-df['lagged_y'] = df['y'].groupby(level='item_number').shift(1)
 
 
 #drop NaNs after feature engineering
 df.dropna(how='any', axis=0, inplace=True)
 
-#drop orders_quantity column as it is not observed at the day before.
-df.drop(['orders_quantity'], axis=1, inplace=True)
+#drop sales_quantity column as it is not observed at the day before.
+df.drop(['sales_quantity'], axis=1, inplace=True)
 
 # %% check the data
 # basic descriptive statistics of the data set:
@@ -122,7 +123,7 @@ if VERBOSE:
     print(c1)
 
 # Show distribution plots of data (from kernel density estimation)
-if VERBOSE:
+if VERBOSE and 0:
     import seaborn as sns
     from matplotlib import pyplot as plt
     from pandas.api.types import is_numeric_dtype
@@ -133,7 +134,7 @@ if VERBOSE:
             plt.show()
      
 # create an autocorrelation plot
-if VERBOSE:
+if VERBOSE and 0:
     from pandas.plotting import autocorrelation_plot
     from matplotlib import pyplot as plt
     autocorrelation_plot(df.y) # (df.value.tolist())
@@ -145,19 +146,6 @@ if VERBOSE:
 if VERBOSE:    
     decompose_time_series(df, output_folder_plots = output_folder_plots)
 
-# Calculate ACF and PACF up to 50 lags
-
-# Draw Plot
-if VERBOSE:
-    from statsmodels.tsa.stattools import acf, pacf
-    from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-    fig, axes = plt.subplots(1,2,figsize=(16,3), dpi= 100)
-    plot_acf(df.y.tolist(), lags=50, ax=axes[0])
-    plot_pacf(df.y.tolist(), lags=50, ax=axes[1], method='ywm')
-    	
-
-
-    
 
 	
 # %% Granger causality	
@@ -174,12 +162,12 @@ if VERBOSE:
 
 
 # %% tune, train, predict and plot model results using LGB:
-trained_model = train_time_series_with_folds(df, output_folder_plots = output_folder_plots, TUNE=0)
+trained_model = train_time_series_with_folds(df, output_folder_plots = output_folder_plots)
 
 
-# %% save the model 
-if 0:
+# %% save or load the trained model 
+import pickle
+if 1:
     pickle.dump(trained_model, open(output_folder_model+'trained_model.pkl', "wb"))
-# load modelk:
-if 0:
-    trained_model = pickle.load(open(output_folder_model+'trained_model.pkl', "rb"))
+# load the trained model:
+# trained_model = pickle.load(open(output_folder_model+'trained_model.pkl', "rb"))
